@@ -1,0 +1,17 @@
+[package]
+name = "audio-automation"
+version = "0.1.0"
+edition = "2021"
+authors = ["PoHsuan Lai <pohsuanlai0208@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Generic automation system for audio parameters - works with any audio framework"
+repository = "https://github.com/PoHsuanLai/audio-automation"
+keywords = ["audio", "automation", "daw", "music", "envelope"]
+categories = ["multimedia::audio"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"
+plotters = "0.3"
