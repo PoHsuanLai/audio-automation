@@ -5,6 +5,7 @@
 //! This crate provides:
 //! - **Automation curves** - Linear, exponential, logarithmic, S-curve, stepped, and bezier
 //! - **Automation envelopes** - Time-based parameter control with multiple points
+//! - **Automation states** - DAW-style states (Off/Play/Write/Touch/Latch)
 //! - **Generic target system** - Works with any parameter type via generics
 //! - **Serialization support** - Save/load automation with serde
 //!
@@ -68,14 +69,17 @@
 pub mod clip;
 pub mod curve;
 pub mod envelope;
+pub mod state;
 
 pub use clip::AutomationClip;
 pub use curve::CurveType;
 pub use envelope::{AutomationEnvelope, AutomationPoint, SampleIterator};
+pub use state::AutomationState;
 
 /// Prelude for common imports
 pub mod prelude {
     pub use crate::clip::AutomationClip;
     pub use crate::curve::CurveType;
     pub use crate::envelope::{AutomationEnvelope, AutomationPoint, SampleIterator};
+    pub use crate::state::AutomationState;
 }

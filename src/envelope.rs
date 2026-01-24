@@ -10,6 +10,9 @@ use serde::{Deserialize, Serialize};
 pub struct AutomationPoint {
     /// Time position in beats (or seconds, depending on your use case)
     pub time: f64,
+    /// Sample position for sample-accurate automation (NEW)
+    /// If None, will be calculated from beat position and tempo map
+    pub sample_position: Option<u64>,
     /// Parameter value (range depends on target)
     pub value: f32,
     /// Curve to next point
@@ -21,6 +24,7 @@ impl AutomationPoint {
     pub fn new(time: f64, value: f32) -> Self {
         Self {
             time,
+            sample_position: None,
             value,
             curve: CurveType::Linear,
         }
@@ -28,7 +32,27 @@ impl AutomationPoint {
 
     /// Create a new automation point with specific curve
     pub fn with_curve(time: f64, value: f32, curve: CurveType) -> Self {
-        Self { time, value, curve }
+        Self {
+            time,
+            sample_position: None,
+            value,
+            curve,
+        }
+    }
+
+    /// Create a new automation point with sample-accurate timing
+    pub fn with_samples(time: f64, sample_position: u64, value: f32, curve: CurveType) -> Self {
+        Self {
+            time,
+            sample_position: Some(sample_position),
+            value,
+            curve,
+        }
+    }
+
+    /// Set sample position for sample-accurate automation
+    pub fn set_sample_position(&mut self, sample: u64) {
+        self.sample_position = Some(sample);
     }
 }
 
@@ -202,6 +226,64 @@ impl<T> AutomationEnvelope<T> {
         Some(self.apply_constraints(value))
     }
 
+    /// Get interpolated value at specific sample position (sample-accurate!)
+    /// This is the preferred method for real-time audio processing
+    #[inline]
+    pub fn get_value_at_sample(&self, sample: u64) -> Option<f32> {
+        if !self.enabled || self.points.is_empty() {
+            return None;
+        }
+
+        // Single point - return its value
+        if self.points.len() == 1 {
+            return Some(self.apply_constraints(self.points[0].value));
+        }
+
+        // Find first point with sample_position set (or use time-based fallback)
+        let first_sample = self.points[0].sample_position.unwrap_or_else(|| {
+            // Fallback: if no sample positions set, treat first point as sample 0
+            0
+        });
+
+        // Before first point - return first value
+        if sample <= first_sample {
+            return Some(self.apply_constraints(self.points[0].value));
+        }
+
+        // Find surrounding points by sample position
+        let last_idx = self.points.len() - 1;
+        let last_sample = self.points[last_idx].sample_position.unwrap_or_else(|| {
+            // Fallback: estimate based on time
+            (self.points[last_idx].time * 48000.0) as u64 // Assume 48kHz
+        });
+
+        // After last point - return last value
+        if sample >= last_sample {
+            return Some(self.apply_constraints(self.points[last_idx].value));
+        }
+
+        // Find surrounding points by binary search on sample positions
+        let (prev_idx, next_idx) = self.find_surrounding_samples(sample)?;
+        let prev = &self.points[prev_idx];
+        let next = &self.points[next_idx];
+
+        // Get sample positions (with fallback to time-based calculation)
+        let prev_sample = prev.sample_position.unwrap_or_else(|| (prev.time * 48000.0) as u64);
+        let next_sample = next.sample_position.unwrap_or_else(|| (next.time * 48000.0) as u64);
+
+        // Calculate interpolation factor (0.0 to 1.0)
+        let sample_span = next_sample - prev_sample;
+        let t = if sample_span > 0 {
+            (sample - prev_sample) as f32 / sample_span as f32
+        } else {
+            0.0
+        };
+
+        // Interpolate using curve type
+        let value = prev.curve.interpolate(prev.value, next.value, t);
+        Some(self.apply_constraints(value))
+    }
+
     /// Apply value constraints (min, max, step)
     fn apply_constraints(&self, mut value: f32) -> f32 {
         // Apply min/max constraints
@@ -246,6 +328,25 @@ impl<T> AutomationEnvelope<T> {
         }
     }
 
+    /// Find indices of points surrounding given sample position (sample-accurate!)
+    fn find_surrounding_samples(&self, sample: u64) -> Option<(usize, usize)> {
+        // Linear search through samples (could be optimized with binary search if needed)
+        for i in 0..self.points.len() - 1 {
+            let curr_sample = self.points[i].sample_position.unwrap_or_else(|| {
+                (self.points[i].time * 48000.0) as u64
+            });
+            let next_sample = self.points[i + 1].sample_position.unwrap_or_else(|| {
+                (self.points[i + 1].time * 48000.0) as u64
+            });
+
+            if sample >= curr_sample && sample <= next_sample {
+                return Some((i, i + 1));
+            }
+        }
+
+        None
+    }
+
     /// Sort points by time (usually not needed as we maintain sorted order)
     pub fn sort_points(&mut self) {
         self.points.sort_by(|a, b| {
@@ -274,6 +375,34 @@ impl<T> AutomationEnvelope<T> {
     }
 
     // ==================== Time Range Operations ====================
+
+    /// Get minimum and maximum values within a sample range (sample-accurate!)
+    pub fn get_range_samples(&self, start_sample: u64, end_sample: u64) -> Option<(f32, f32)> {
+        if self.points.is_empty() {
+            return None;
+        }
+
+        let mut min = f32::MAX;
+        let mut max = f32::MIN;
+
+        // Sample the envelope at regular sample intervals (e.g., every 1000 samples)
+        let sample_step = ((end_sample - start_sample) / 100).max(1);
+        let mut current = start_sample;
+
+        while current <= end_sample {
+            if let Some(value) = self.get_value_at_sample(current) {
+                min = min.min(value);
+                max = max.max(value);
+            }
+            current += sample_step;
+        }
+
+        if min <= max {
+            Some((min, max))
+        } else {
+            None
+        }
+    }
 
     /// Get the minimum and maximum values within a time range
     pub fn get_range(&self, start_time: f64, end_time: f64) -> Option<(f32, f32)> {
