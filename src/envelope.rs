@@ -268,12 +268,8 @@ impl<T> AutomationEnvelope<T> {
         let next = &self.points[next_idx];
 
         // Get sample positions (with fallback to time-based calculation)
-        let prev_sample = prev
-            .sample_position
-            .unwrap_or((prev.time * 48000.0) as u64);
-        let next_sample = next
-            .sample_position
-            .unwrap_or((next.time * 48000.0) as u64);
+        let prev_sample = prev.sample_position.unwrap_or((prev.time * 48000.0) as u64);
+        let next_sample = next.sample_position.unwrap_or((next.time * 48000.0) as u64);
 
         // Calculate interpolation factor (0.0 to 1.0)
         let sample_span = next_sample - prev_sample;
