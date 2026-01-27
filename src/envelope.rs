@@ -56,6 +56,8 @@ impl AutomationPoint {
     }
 }
 
+/// Compares two [`AutomationPoint`]s using epsilon-based floating-point comparison
+/// on `time` and `value` fields. The `curve` type is not considered.
 impl PartialEq for AutomationPoint {
     fn eq(&self, other: &Self) -> bool {
         (self.time - other.time).abs() < f64::EPSILON
@@ -499,8 +501,14 @@ impl<T> AutomationEnvelope<T> {
         self.validate();
     }
 
-    /// Simplify envelope by removing redundant points
-    /// tolerance: maximum allowed error when removing points
+    /// Simplify envelope by removing redundant points.
+    ///
+    /// Points that don't significantly affect the curve shape are removed,
+    /// reducing the number of points while preserving the overall envelope shape.
+    ///
+    /// # Arguments
+    ///
+    /// * `tolerance` - Maximum allowed error when removing points.
     pub fn simplify(&mut self, tolerance: f32) {
         if self.points.len() <= 2 {
             return;

@@ -206,8 +206,16 @@ impl CurveType {
     }
 }
 
-/// Cubic bezier interpolation
-/// Given t (0 to 1) and two control points, returns interpolated t
+/// Cubic bezier interpolation.
+///
+/// Evaluates the cubic Bezier formula `B(t) = (1-t)³ + 3(1-t)²t·cp1 + 3(1-t)t²·cp2 + t³`
+/// with fixed start (0,0) and end (1,1) control points.
+///
+/// # Arguments
+///
+/// * `t` - Interpolation parameter in `[0, 1]`.
+/// * `cp1` - First control point value.
+/// * `cp2` - Second control point value.
 #[inline]
 fn cubic_bezier(t: f32, cp1: f32, cp2: f32) -> f32 {
     let t2 = t * t;

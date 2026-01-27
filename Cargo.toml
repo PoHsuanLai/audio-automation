@@ -6,8 +6,11 @@ authors = ["PoHsuan Lai <pohsuanlai0208@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Generic automation system for audio parameters - works with any audio framework"
 repository = "https://github.com/PoHsuanLai/audio-automation"
+readme = "README.md"
+documentation = "https://docs.rs/audio-automation"
 keywords = ["audio", "automation", "daw", "music", "envelope"]
 categories = ["multimedia::audio"]
+exclude = ["plots/", "automation_plots/"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

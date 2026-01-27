@@ -166,7 +166,10 @@ where
         }
     }
 
-    /// Sample all envelopes to buffers
+    /// Sample all envelopes to buffers.
+    ///
+    /// Returns a map of envelope keys to their sampled values, where each buffer
+    /// contains one value per sample over the clip's duration at the given sample rate.
     pub fn to_buffers(&self, sample_rate: f64) -> HashMap<String, Vec<f32>> {
         let mut buffers = HashMap::new();
 
