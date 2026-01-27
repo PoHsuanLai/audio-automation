@@ -31,8 +31,8 @@ fn plot_curve(name: &str, curve_type: CurveType) {
     let mut grid = vec![vec![' '; WIDTH]; HEIGHT];
 
     // Draw axes
-    for y in 0..HEIGHT {
-        grid[y][0] = '│';
+    for row in grid.iter_mut().take(HEIGHT) {
+        row[0] = '│';
     }
     for x in 0..WIDTH {
         grid[HEIGHT - 1][x] = '─';
@@ -57,9 +57,9 @@ fn plot_curve(name: &str, curve_type: CurveType) {
             if i > 0 {
                 let min_y = y.min(prev_y);
                 let max_y = y.max(prev_y);
-                for draw_y in min_y..=max_y {
-                    if grid[draw_y][x] == ' ' {
-                        grid[draw_y][x] = '│';
+                for row in grid.iter_mut().take(max_y + 1).skip(min_y) {
+                    if row[x] == ' ' {
+                        row[x] = '│';
                     }
                 }
             }

@@ -242,10 +242,8 @@ impl<T> AutomationEnvelope<T> {
         }
 
         // Find first point with sample_position set (or use time-based fallback)
-        let first_sample = self.points[0].sample_position.unwrap_or_else(|| {
-            // Fallback: if no sample positions set, treat first point as sample 0
-            0
-        });
+        // Fallback: if no sample positions set, treat first point as sample 0
+        let first_sample = self.points[0].sample_position.unwrap_or(0);
 
         // Before first point - return first value
         if sample <= first_sample {
@@ -254,10 +252,10 @@ impl<T> AutomationEnvelope<T> {
 
         // Find surrounding points by sample position
         let last_idx = self.points.len() - 1;
-        let last_sample = self.points[last_idx].sample_position.unwrap_or_else(|| {
-            // Fallback: estimate based on time
-            (self.points[last_idx].time * 48000.0) as u64 // Assume 48kHz
-        });
+        // Fallback: estimate based on time (assume 48kHz)
+        let last_sample = self.points[last_idx]
+            .sample_position
+            .unwrap_or((self.points[last_idx].time * 48000.0) as u64);
 
         // After last point - return last value
         if sample >= last_sample {
@@ -270,8 +268,12 @@ impl<T> AutomationEnvelope<T> {
         let next = &self.points[next_idx];
 
         // Get sample positions (with fallback to time-based calculation)
-        let prev_sample = prev.sample_position.unwrap_or_else(|| (prev.time * 48000.0) as u64);
-        let next_sample = next.sample_position.unwrap_or_else(|| (next.time * 48000.0) as u64);
+        let prev_sample = prev
+            .sample_position
+            .unwrap_or((prev.time * 48000.0) as u64);
+        let next_sample = next
+            .sample_position
+            .unwrap_or((next.time * 48000.0) as u64);
 
         // Calculate interpolation factor (0.0 to 1.0)
         let sample_span = next_sample - prev_sample;
@@ -334,12 +336,12 @@ impl<T> AutomationEnvelope<T> {
     fn find_surrounding_samples(&self, sample: u64) -> Option<(usize, usize)> {
         // Linear search through samples (could be optimized with binary search if needed)
         for i in 0..self.points.len() - 1 {
-            let curr_sample = self.points[i].sample_position.unwrap_or_else(|| {
-                (self.points[i].time * 48000.0) as u64
-            });
-            let next_sample = self.points[i + 1].sample_position.unwrap_or_else(|| {
-                (self.points[i + 1].time * 48000.0) as u64
-            });
+            let curr_sample = self.points[i]
+                .sample_position
+                .unwrap_or((self.points[i].time * 48000.0) as u64);
+            let next_sample = self.points[i + 1]
+                .sample_position
+                .unwrap_or((self.points[i + 1].time * 48000.0) as u64);
 
             if sample >= curr_sample && sample <= next_sample {
                 return Some((i, i + 1));

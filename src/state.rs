@@ -64,13 +64,7 @@ impl AutomationState {
 
     /// All possible states for UI display
     pub fn all() -> &'static [AutomationState] {
-        &[
-            Self::Off,
-            Self::Play,
-            Self::Write,
-            Self::Touch,
-            Self::Latch,
-        ]
+        &[Self::Off, Self::Play, Self::Write, Self::Touch, Self::Latch]
     }
 
     /// Display name for UI
