@@ -124,7 +124,7 @@ impl<T> AutomationEnvelope<T> {
     }
 
     /// Add a point to the envelope (maintains sorted order)
-    pub fn add_point(&mut self, point: AutomationPoint) {
+    pub fn add_point(&mut self, point: AutomationPoint) -> &mut Self {
         // Find insertion position using binary search
         let pos = self.points.binary_search_by(|p| {
             p.time
@@ -142,6 +142,7 @@ impl<T> AutomationEnvelope<T> {
                 self.points.insert(idx, point);
             }
         }
+        self
     }
 
     /// Remove a point at specific time
@@ -155,11 +156,7 @@ impl<T> AutomationEnvelope<T> {
 
     /// Remove point by index
     pub fn remove_point(&mut self, index: usize) -> Option<AutomationPoint> {
-        if index < self.points.len() {
-            Some(self.points.remove(index))
-        } else {
-            None
-        }
+        (index < self.points.len()).then(|| self.points.remove(index))
     }
 
     /// Get point at specific index
@@ -397,11 +394,7 @@ impl<T> AutomationEnvelope<T> {
             current += sample_step;
         }
 
-        if min <= max {
-            Some((min, max))
-        } else {
-            None
-        }
+        (min <= max).then_some((min, max))
     }
 
     /// Get the minimum and maximum values within a time range
@@ -433,11 +426,7 @@ impl<T> AutomationEnvelope<T> {
             }
         }
 
-        if min == f32::MAX || max == f32::MIN {
-            None
-        } else {
-            Some((min, max))
-        }
+        (min != f32::MAX && max != f32::MIN).then_some((min, max))
     }
 
     /// Shift all points by a time offset
