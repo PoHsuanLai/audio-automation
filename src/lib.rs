@@ -35,7 +35,7 @@
 //! - **Bezier** - Custom curve with control points
 //! - **Advanced Easing** - Elastic, Bounce, Back, Circular, and polynomial variants
 //!
-//! ## Example: Presets and Transformations
+//! ## Example: Transformations
 //!
 //! ```rust
 //! use audio_automation::*;
@@ -54,6 +54,43 @@
 //!     .clamp_values(0.0, 1.0);
 //!
 //! assert!(automation.get_value_at(3.0).unwrap() < 0.1);
+//! ```
+//!
+//! ## Example: Iterating and Indexing
+//!
+//! ```rust
+//! use audio_automation::*;
+//!
+//! # #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+//! # enum Param { Volume, Cutoff }
+//!
+//! let env = AutomationEnvelope::new(Param::Volume)
+//!     .with_point(AutomationPoint::new(0.0, 0.0))
+//!     .with_point(AutomationPoint::new(2.0, 0.5))
+//!     .with_point(AutomationPoint::new(4.0, 1.0));
+//!
+//! // Index into points
+//! assert_eq!(env[0].time, 0.0);
+//!
+//! // Iterate over points
+//! let times: Vec<f64> = (&env).into_iter().map(|p| p.time).collect();
+//! assert_eq!(times, vec![0.0, 2.0, 4.0]);
+//!
+//! // Iterate over a clip's envelopes
+//! let clip = AutomationClip::new("Intro", 4.0)
+//!     .with_envelope("volume", AutomationEnvelope::new(Param::Volume)
+//!         .with_point(AutomationPoint::new(0.0, 0.0))
+//!         .with_point(AutomationPoint::new(4.0, 1.0)))
+//!     .with_envelope("cutoff", AutomationEnvelope::new(Param::Cutoff)
+//!         .with_point(AutomationPoint::new(0.0, 0.5))
+//!         .with_point(AutomationPoint::new(4.0, 1.0)));
+//!
+//! for (key, envelope) in &clip {
+//!     let _ = envelope.get_value_at(2.0);
+//!     let _ = key;
+//! }
+//! // Index by key
+//! assert!(clip["volume"].get_value_at(2.0).unwrap() > 0.0);
 //! ```
 
 pub mod clip;
