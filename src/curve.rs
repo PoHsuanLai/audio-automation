@@ -49,9 +49,10 @@ impl CurveType {
             }
             CurveType::Stepped => {
                 if t < 1.0 {
-                    return start;
+                    0.0
+                } else {
+                    1.0
                 }
-                return end;
             }
             CurveType::Bezier(cp1, cp2) => cubic_bezier(t, *cp1, *cp2),
 
