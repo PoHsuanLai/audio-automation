@@ -1,28 +1,33 @@
-//! Automation clip - container for multiple envelopes
-//!
-//! Allows you to manage multiple parameter automations together
+//! Automation clip — container for multiple envelopes
 
 use super::envelope::AutomationEnvelope;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Container for multiple automation envelopes
+/// Groups multiple automation envelopes for unified time transformations and serialization.
 ///
-/// An automation clip groups multiple envelopes together, allowing you to:
-/// - Manage multiple parameter automations as a unit
-/// - Shift, scale, or transform all envelopes together
-/// - Save/load complete automation setups
+/// # Examples
 ///
-/// Generic over `T` which represents the automation target type.
+/// ```rust
+/// use audio_automation::{AutomationClip, AutomationEnvelope, AutomationPoint, CurveType};
+///
+/// # #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+/// # enum Param { Volume, Pan }
+/// let clip = AutomationClip::new("Intro", 8.0)
+///     .with_envelope("volume",
+///         AutomationEnvelope::new(Param::Volume)
+///             .with_point(AutomationPoint::new(0.0, 0.0))
+///             .with_point(AutomationPoint::new(8.0, 1.0)))
+///     .with_envelope("pan",
+///         AutomationEnvelope::new(Param::Pan)
+///             .with_point(AutomationPoint::new(0.0, -1.0))
+///             .with_point(AutomationPoint::new(8.0, 1.0)));
+/// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationClip<T> {
-    /// Name of this clip
     pub name: String,
-    /// Map of target to envelope
     pub envelopes: HashMap<String, AutomationEnvelope<T>>,
-    /// Duration of the clip in beats/seconds
     pub duration: f64,
-    /// Is this clip enabled?
     pub enabled: bool,
 }
 
@@ -30,7 +35,6 @@ impl<T> AutomationClip<T>
 where
     T: Clone + std::fmt::Debug,
 {
-    /// Create a new empty automation clip
     pub fn new(name: impl Into<String>, duration: f64) -> Self {
         Self {
             name: name.into(),
@@ -40,50 +44,59 @@ where
         }
     }
 
-    /// Add an envelope to this clip
-    pub fn add_envelope(&mut self, key: impl Into<String>, envelope: AutomationEnvelope<T>) {
+    /// Add an envelope, returning `Self` for use during construction.
+    pub fn with_envelope(
+        mut self,
+        key: impl Into<String>,
+        envelope: AutomationEnvelope<T>,
+    ) -> Self {
         self.envelopes.insert(key.into(), envelope);
+        self
     }
 
-    /// Get an envelope by key
+    pub fn add_envelope(
+        &mut self,
+        key: impl Into<String>,
+        envelope: AutomationEnvelope<T>,
+    ) -> &mut Self {
+        self.envelopes.insert(key.into(), envelope);
+        self
+    }
+
     #[must_use]
     pub fn get_envelope(&self, key: &str) -> Option<&AutomationEnvelope<T>> {
         self.envelopes.get(key)
     }
 
-    /// Get a mutable envelope by key
     pub fn get_envelope_mut(&mut self, key: &str) -> Option<&mut AutomationEnvelope<T>> {
         self.envelopes.get_mut(key)
     }
 
-    /// Remove an envelope by key
-    pub fn remove_envelope(&mut self, key: &str) -> Option<AutomationEnvelope<T>> {
-        self.envelopes.remove(key)
+    pub fn remove_envelope(&mut self, key: &str) -> &mut Self {
+        self.envelopes.remove(key);
+        self
     }
 
-    /// Get all envelope keys
-    #[must_use]
-    pub fn keys(&self) -> Vec<String> {
-        self.envelopes.keys().cloned().collect()
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.envelopes.keys()
     }
 
-    /// Get number of envelopes
     #[must_use]
     pub fn len(&self) -> usize {
         self.envelopes.len()
     }
 
-    /// Check if clip is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.envelopes.is_empty()
     }
 
-    /// Clear all envelopes
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> &mut Self {
         self.envelopes.clear();
+        self
     }
 
-    /// Get value for all envelopes at a specific time
+    #[must_use]
     pub fn get_values_at(&self, time: f64) -> HashMap<String, f32> {
         let mut values = HashMap::new();
 
@@ -96,59 +109,59 @@ where
         values
     }
 
-    /// Shift all envelopes by a time offset
-    pub fn shift_all(&mut self, offset: f64) {
+    pub fn shift_all(&mut self, offset: f64) -> &mut Self {
         for envelope in self.envelopes.values_mut() {
             envelope.shift_points(offset);
         }
+        self
     }
 
-    /// Scale time for all envelopes
-    pub fn scale_time_all(&mut self, factor: f64) {
+    pub fn scale_time_all(&mut self, factor: f64) -> &mut Self {
         for envelope in self.envelopes.values_mut() {
             envelope.scale_time(factor);
         }
         self.duration *= factor;
+        self
     }
 
-    /// Trim all envelopes to a time range
-    pub fn trim_all(&mut self, start_time: f64, end_time: f64) {
+    pub fn trim_all(&mut self, start_time: f64, end_time: f64) -> &mut Self {
         for envelope in self.envelopes.values_mut() {
             envelope.trim(start_time, end_time);
         }
         self.duration = end_time - start_time;
+        self
     }
 
-    /// Reverse all envelopes
-    pub fn reverse_all(&mut self) {
+    pub fn reverse_all(&mut self) -> &mut Self {
         for envelope in self.envelopes.values_mut() {
             envelope.reverse();
         }
+        self
     }
 
-    /// Quantize all envelope points to a grid
-    pub fn quantize_all(&mut self, grid: f64) {
+    pub fn quantize_all(&mut self, grid: f64) -> &mut Self {
         for envelope in self.envelopes.values_mut() {
             envelope.quantize_time(grid);
         }
+        self
     }
 
-    /// Simplify all envelopes
-    pub fn simplify_all(&mut self, tolerance: f32) {
+    pub fn simplify_all(&mut self, tolerance: f32) -> &mut Self {
         for envelope in self.envelopes.values_mut() {
             envelope.simplify(tolerance);
         }
+        self
     }
 
-    /// Clone this clip with a new name
+    #[must_use]
     pub fn duplicate(&self, new_name: impl Into<String>) -> Self {
-        let mut new_clip = self.clone();
-        new_clip.name = new_name.into();
-        new_clip
+        Self {
+            name: new_name.into(),
+            ..self.clone()
+        }
     }
 
-    /// Merge another clip into this one at a given offset
-    pub fn merge_clip(&mut self, other: &Self, offset: f64) {
+    pub fn merge_clip(&mut self, other: &Self, offset: f64) -> &mut Self {
         for (key, other_envelope) in &other.envelopes {
             if let Some(envelope) = self.envelopes.get_mut(key) {
                 envelope.merge(other_envelope, offset);
@@ -159,17 +172,15 @@ where
             }
         }
 
-        // Update duration if needed
         let new_end = offset + other.duration;
         if new_end > self.duration {
             self.duration = new_end;
         }
+        self
     }
 
     /// Sample all envelopes to buffers.
-    ///
-    /// Returns a map of envelope keys to their sampled values, where each buffer
-    /// contains one value per sample over the clip's duration at the given sample rate.
+    #[must_use]
     pub fn to_buffers(&self, sample_rate: f64) -> HashMap<String, Vec<f32>> {
         let mut buffers = HashMap::new();
 
@@ -187,6 +198,58 @@ where
 {
     fn default() -> Self {
         Self::new("Untitled", 4.0)
+    }
+}
+
+impl<T> std::ops::Index<&str> for AutomationClip<T>
+where
+    T: Clone + std::fmt::Debug,
+{
+    type Output = AutomationEnvelope<T>;
+    fn index(&self, key: &str) -> &Self::Output {
+        &self.envelopes[key]
+    }
+}
+
+impl<T> std::ops::IndexMut<&str> for AutomationClip<T>
+where
+    T: Clone + std::fmt::Debug,
+{
+    fn index_mut(&mut self, key: &str) -> &mut Self::Output {
+        self.envelopes.get_mut(key).expect("key not found in clip")
+    }
+}
+
+impl<'a, T> IntoIterator for &'a AutomationClip<T>
+where
+    T: Clone + std::fmt::Debug,
+{
+    type Item = (&'a String, &'a AutomationEnvelope<T>);
+    type IntoIter = std::collections::hash_map::Iter<'a, String, AutomationEnvelope<T>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.envelopes.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut AutomationClip<T>
+where
+    T: Clone + std::fmt::Debug,
+{
+    type Item = (&'a String, &'a mut AutomationEnvelope<T>);
+    type IntoIter = std::collections::hash_map::IterMut<'a, String, AutomationEnvelope<T>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.envelopes.iter_mut()
+    }
+}
+
+impl<T> IntoIterator for AutomationClip<T>
+where
+    T: Clone + std::fmt::Debug,
+{
+    type Item = (String, AutomationEnvelope<T>);
+    type IntoIter = std::collections::hash_map::IntoIter<String, AutomationEnvelope<T>>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.envelopes.into_iter()
     }
 }
 

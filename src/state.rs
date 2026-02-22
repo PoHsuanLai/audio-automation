@@ -3,8 +3,6 @@
 //! Implements DAW-style automation states that control how automation
 //! is recorded and played back for each parameter lane.
 //!
-//! # Automation States
-//!
 //! | State | Description |
 //! |-------|-------------|
 //! | Off   | Ignores automation, uses manual value only |
@@ -20,54 +18,45 @@ use serde::{Deserialize, Serialize};
 /// Automation state for a parameter lane (Ardour/Pro Tools style)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum AutomationState {
-    /// Automation disabled - uses manual value only
     #[default]
     Off,
-
-    /// Playback only - reads automation curve, no recording
     Play,
-
-    /// Continuous recording - overwrites all existing automation
     Write,
-
-    /// Touch recording - records while touching, returns to curve on release
     Touch,
-
-    /// Latch recording - records while touching, continues at last value after release
     Latch,
 }
 
 impl AutomationState {
-    /// Returns true if this state reads automation values during playback
+    #[must_use]
     #[inline]
     pub fn reads_automation(&self) -> bool {
         matches!(self, Self::Play | Self::Touch | Self::Latch)
     }
 
-    /// Returns true if this state can record automation
+    #[must_use]
     #[inline]
     pub fn can_record(&self) -> bool {
         matches!(self, Self::Write | Self::Touch | Self::Latch)
     }
 
-    /// Returns true if this state should start recording on touch
+    #[must_use]
     #[inline]
     pub fn starts_on_touch(&self) -> bool {
         matches!(self, Self::Touch | Self::Latch)
     }
 
-    /// Returns true if this state stops recording on release
+    #[must_use]
     #[inline]
     pub fn stops_on_release(&self) -> bool {
         matches!(self, Self::Touch)
     }
 
-    /// All possible states for UI display
+    #[must_use]
     pub fn all() -> &'static [AutomationState] {
         &[Self::Off, Self::Play, Self::Write, Self::Touch, Self::Latch]
     }
 
-    /// Display name for UI
+    #[must_use]
     pub fn display_name(&self) -> &'static str {
         match self {
             Self::Off => "Off",
@@ -78,7 +67,7 @@ impl AutomationState {
         }
     }
 
-    /// Short abbreviation for compact UI
+    #[must_use]
     pub fn abbreviation(&self) -> &'static str {
         match self {
             Self::Off => "OFF",

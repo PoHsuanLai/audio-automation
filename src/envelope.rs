@@ -1,6 +1,4 @@
-//! Automation envelope data structures
-//!
-//! Defines automation points and envelopes with generic target types
+//! Automation envelope — time-indexed parameter automation with interpolation
 
 use super::curve::CurveType;
 use serde::{Deserialize, Serialize};
@@ -8,20 +6,17 @@ use serde::{Deserialize, Serialize};
 /// Single automation point
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationPoint {
-    /// Time position in beats (or seconds, depending on your use case)
+    /// Time position in beats (or seconds, depending on context)
     pub time: f64,
-    /// Sample position for sample-accurate automation (NEW)
-    /// If None, will be calculated from beat position and tempo map
+    /// If None, calculated from beat position and tempo map
     pub sample_position: Option<u64>,
-    /// Parameter value (range depends on target)
     pub value: f32,
     /// Curve to next point
     pub curve: CurveType,
 }
 
 impl AutomationPoint {
-    /// Create a new automation point with linear curve
-    pub fn new(time: f64, value: f32) -> Self {
+    pub const fn new(time: f64, value: f32) -> Self {
         Self {
             time,
             sample_position: None,
@@ -30,8 +25,7 @@ impl AutomationPoint {
         }
     }
 
-    /// Create a new automation point with specific curve
-    pub fn with_curve(time: f64, value: f32, curve: CurveType) -> Self {
+    pub const fn with_curve(time: f64, value: f32, curve: CurveType) -> Self {
         Self {
             time,
             sample_position: None,
@@ -40,8 +34,12 @@ impl AutomationPoint {
         }
     }
 
-    /// Create a new automation point with sample-accurate timing
-    pub fn with_samples(time: f64, sample_position: u64, value: f32, curve: CurveType) -> Self {
+    pub const fn with_samples(
+        time: f64,
+        sample_position: u64,
+        value: f32,
+        curve: CurveType,
+    ) -> Self {
         Self {
             time,
             sample_position: Some(sample_position),
@@ -50,7 +48,6 @@ impl AutomationPoint {
         }
     }
 
-    /// Set sample position for sample-accurate automation
     pub fn set_sample_position(&mut self, sample: u64) {
         self.sample_position = Some(sample);
     }
@@ -65,28 +62,22 @@ impl PartialEq for AutomationPoint {
     }
 }
 
-/// Automation envelope for a single parameter
+/// Automation envelope for a single parameter.
 ///
-/// Generic over `T` which represents the automation target (e.g., which parameter to automate).
-/// `T` should implement `Clone + Serialize + Deserialize` for persistence.
+/// Generic over `T` (the automation target). Use `with_*` builder methods for construction,
+/// or mutating methods (returning `&mut Self`) for chaining on an existing envelope.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationEnvelope<T> {
-    /// Target parameter
     pub target: T,
-    /// Automation points (sorted by time)
+    /// Sorted by time
     pub points: Vec<AutomationPoint>,
-    /// Is this envelope enabled?
     pub enabled: bool,
-    /// Minimum allowed value (optional constraint)
     pub min_value: Option<f32>,
-    /// Maximum allowed value (optional constraint)
     pub max_value: Option<f32>,
-    /// Step size for quantized values (optional)
     pub step_size: Option<f32>,
 }
 
 impl<T> AutomationEnvelope<T> {
-    /// Create a new empty envelope
     pub fn new(target: T) -> Self {
         Self {
             target,
@@ -98,124 +89,123 @@ impl<T> AutomationEnvelope<T> {
         }
     }
 
-    /// Set minimum value constraint
     pub fn with_min(mut self, min: f32) -> Self {
         self.min_value = Some(min);
         self
     }
 
-    /// Set maximum value constraint
     pub fn with_max(mut self, max: f32) -> Self {
         self.max_value = Some(max);
         self
     }
 
-    /// Set value range constraint
     pub fn with_range(mut self, min: f32, max: f32) -> Self {
         self.min_value = Some(min);
         self.max_value = Some(max);
         self
     }
 
-    /// Set step size for quantized values
     pub fn with_step(mut self, step: f32) -> Self {
         self.step_size = Some(step);
         self
     }
 
-    /// Add a point to the envelope (maintains sorted order)
-    pub fn add_point(&mut self, point: AutomationPoint) {
-        // Find insertion position using binary search
-        let pos = self.points.binary_search_by(|p| {
-            p.time
-                .partial_cmp(&point.time)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+    /// Returns `Self` (owned) for building; `add_point` returns `&mut Self` for chaining.
+    pub fn with_point(mut self, point: AutomationPoint) -> Self {
+        self.add_point(point);
+        self
+    }
+
+    pub fn with_points(mut self, points: impl IntoIterator<Item = AutomationPoint>) -> Self {
+        for point in points {
+            self.add_point(point);
+        }
+        self
+    }
+
+    /// Inserts maintaining sorted order; replaces existing point at same time.
+    pub fn add_point(&mut self, point: AutomationPoint) -> &mut Self {
+        let pos = self
+            .points
+            .binary_search_by(|p| p.time.total_cmp(&point.time));
 
         match pos {
             Ok(idx) => {
-                // Replace existing point at same time
                 self.points[idx] = point;
             }
             Err(idx) => {
-                // Insert at correct position
                 self.points.insert(idx, point);
             }
         }
+        self
     }
 
-    /// Remove a point at specific time
-    pub fn remove_point_at(&mut self, time: f64) -> Option<AutomationPoint> {
-        let pos = self
+    pub fn remove_point_at(&mut self, time: f64) -> &mut Self {
+        if let Some(pos) = self
             .points
             .iter()
-            .position(|p| (p.time - time).abs() < 0.001)?;
-        Some(self.points.remove(pos))
-    }
-
-    /// Remove point by index
-    pub fn remove_point(&mut self, index: usize) -> Option<AutomationPoint> {
-        if index < self.points.len() {
-            Some(self.points.remove(index))
-        } else {
-            None
+            .position(|p| (p.time - time).abs() < 0.001)
+        {
+            self.points.remove(pos);
         }
+        self
     }
 
-    /// Get point at specific index
+    pub fn remove_point(&mut self, index: usize) -> &mut Self {
+        if index < self.points.len() {
+            self.points.remove(index);
+        }
+        self
+    }
+
+    #[must_use]
     pub fn get_point(&self, index: usize) -> Option<&AutomationPoint> {
         self.points.get(index)
     }
 
-    /// Get mutable point at specific index
     pub fn get_point_mut(&mut self, index: usize) -> Option<&mut AutomationPoint> {
         self.points.get_mut(index)
     }
 
-    /// Clear all points
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> &mut Self {
         self.points.clear();
+        self
     }
 
-    /// Get number of points
+    #[must_use]
     pub fn len(&self) -> usize {
         self.points.len()
     }
 
-    /// Check if envelope is empty
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.points.is_empty()
     }
 
-    /// Get interpolated value at specific time
+    #[must_use]
     #[inline]
     pub fn get_value_at(&self, time: f64) -> Option<f32> {
         if !self.enabled || self.points.is_empty() {
             return None;
         }
 
-        // Single point - return its value
         if self.points.len() == 1 {
             return Some(self.apply_constraints(self.points[0].value));
         }
 
-        // Before first point - return first value
         if time <= self.points[0].time {
             return Some(self.apply_constraints(self.points[0].value));
         }
 
-        // After last point - return last value
         let last_idx = self.points.len() - 1;
         if time >= self.points[last_idx].time {
             return Some(self.apply_constraints(self.points[last_idx].value));
         }
 
-        // Find surrounding points
         let (prev_idx, next_idx) = self.find_surrounding_indices(time)?;
         let prev = &self.points[prev_idx];
         let next = &self.points[next_idx];
 
-        // Calculate interpolation factor (0.0 to 1.0)
         let time_span = next.time - prev.time;
         let t = if time_span > 0.0 {
             ((time - prev.time) / time_span) as f32
@@ -223,55 +213,46 @@ impl<T> AutomationEnvelope<T> {
             0.0
         };
 
-        // Interpolate using curve type
         let value = prev.curve.interpolate(prev.value, next.value, t);
         Some(self.apply_constraints(value))
     }
 
-    /// Get interpolated value at specific sample position (sample-accurate!)
-    /// This is the preferred method for real-time audio processing
+    #[must_use]
+    /// Preferred for real-time audio processing — sample-accurate interpolation.
     #[inline]
     pub fn get_value_at_sample(&self, sample: u64) -> Option<f32> {
         if !self.enabled || self.points.is_empty() {
             return None;
         }
 
-        // Single point - return its value
         if self.points.len() == 1 {
             return Some(self.apply_constraints(self.points[0].value));
         }
 
-        // Find first point with sample_position set (or use time-based fallback)
         // Fallback: if no sample positions set, treat first point as sample 0
         let first_sample = self.points[0].sample_position.unwrap_or(0);
 
-        // Before first point - return first value
         if sample <= first_sample {
             return Some(self.apply_constraints(self.points[0].value));
         }
 
-        // Find surrounding points by sample position
         let last_idx = self.points.len() - 1;
         // Fallback: estimate based on time (assume 48kHz)
         let last_sample = self.points[last_idx]
             .sample_position
             .unwrap_or((self.points[last_idx].time * 48000.0) as u64);
 
-        // After last point - return last value
         if sample >= last_sample {
             return Some(self.apply_constraints(self.points[last_idx].value));
         }
 
-        // Find surrounding points by binary search on sample positions
         let (prev_idx, next_idx) = self.find_surrounding_samples(sample)?;
         let prev = &self.points[prev_idx];
         let next = &self.points[next_idx];
 
-        // Get sample positions (with fallback to time-based calculation)
         let prev_sample = prev.sample_position.unwrap_or((prev.time * 48000.0) as u64);
         let next_sample = next.sample_position.unwrap_or((next.time * 48000.0) as u64);
 
-        // Calculate interpolation factor (0.0 to 1.0)
         let sample_span = next_sample - prev_sample;
         let t = if sample_span > 0 {
             (sample - prev_sample) as f32 / sample_span as f32
@@ -279,14 +260,11 @@ impl<T> AutomationEnvelope<T> {
             0.0
         };
 
-        // Interpolate using curve type
         let value = prev.curve.interpolate(prev.value, next.value, t);
         Some(self.apply_constraints(value))
     }
 
-    /// Apply value constraints (min, max, step)
     fn apply_constraints(&self, mut value: f32) -> f32 {
-        // Apply min/max constraints
         if let Some(min) = self.min_value {
             value = value.max(min);
         }
@@ -294,7 +272,6 @@ impl<T> AutomationEnvelope<T> {
             value = value.min(max);
         }
 
-        // Apply step quantization
         if let Some(step) = self.step_size {
             if step > 0.0 {
                 value = (value / step).round() * step;
@@ -304,20 +281,11 @@ impl<T> AutomationEnvelope<T> {
         value
     }
 
-    /// Find indices of points surrounding given time
     fn find_surrounding_indices(&self, time: f64) -> Option<(usize, usize)> {
-        // Binary search for insertion position
-        let pos = self.points.binary_search_by(|p| {
-            p.time
-                .partial_cmp(&time)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+        let pos = self.points.binary_search_by(|p| p.time.total_cmp(&time));
 
         match pos {
-            Ok(exact) => {
-                // Exact match - return same index twice
-                Some((exact, exact))
-            }
+            Ok(exact) => Some((exact, exact)),
             Err(insert_pos) => {
                 if insert_pos == 0 || insert_pos >= self.points.len() {
                     None
@@ -328,64 +296,50 @@ impl<T> AutomationEnvelope<T> {
         }
     }
 
-    /// Find indices of points surrounding given sample position (sample-accurate!)
     fn find_surrounding_samples(&self, sample: u64) -> Option<(usize, usize)> {
-        // Linear search through samples (could be optimized with binary search if needed)
-        for i in 0..self.points.len() - 1 {
-            let curr_sample = self.points[i]
-                .sample_position
-                .unwrap_or((self.points[i].time * 48000.0) as u64);
-            let next_sample = self.points[i + 1]
-                .sample_position
-                .unwrap_or((self.points[i + 1].time * 48000.0) as u64);
+        let pos = self.points.binary_search_by_key(&sample, |p| {
+            p.sample_position.unwrap_or((p.time * 48000.0) as u64)
+        });
 
-            if sample >= curr_sample && sample <= next_sample {
-                return Some((i, i + 1));
+        match pos {
+            Ok(exact) => Some((exact, exact)),
+            Err(insert_pos) => {
+                if insert_pos == 0 || insert_pos >= self.points.len() {
+                    None
+                } else {
+                    Some((insert_pos - 1, insert_pos))
+                }
             }
         }
-
-        None
     }
 
-    /// Sort points by time (usually not needed as we maintain sorted order)
-    pub fn sort_points(&mut self) {
-        self.points.sort_by(|a, b| {
-            a.time
-                .partial_cmp(&b.time)
-                .unwrap_or(std::cmp::Ordering::Equal)
-        });
+    /// Usually not needed — `add_point` maintains sorted order.
+    pub fn sort_points(&mut self) -> &mut Self {
+        self.points.sort_by(|a, b| a.time.total_cmp(&b.time));
+        self
     }
 
-    /// Validate envelope (check for duplicates, sort order, etc.)
-    pub fn validate(&mut self) -> bool {
-        // Check if sorted
+    pub fn validate(&mut self) {
         for i in 1..self.points.len() {
             if self.points[i].time < self.points[i - 1].time {
-                // Not sorted - fix it
                 self.sort_points();
                 break;
             }
         }
 
-        // Check for duplicate times
         let mut seen_times = std::collections::HashSet::new();
         self.points.retain(|p| seen_times.insert(p.time.to_bits()));
-
-        true
     }
 
-    // ==================== Time Range Operations ====================
-
-    /// Get minimum and maximum values within a sample range (sample-accurate!)
+    #[must_use]
     pub fn get_range_samples(&self, start_sample: u64, end_sample: u64) -> Option<(f32, f32)> {
         if self.points.is_empty() {
             return None;
         }
 
-        let mut min = f32::MAX;
-        let mut max = f32::MIN;
+        let mut min = f32::INFINITY;
+        let mut max = f32::NEG_INFINITY;
 
-        // Sample the envelope at regular sample intervals (e.g., every 1000 samples)
         let sample_step = ((end_sample - start_sample) / 100).max(1);
         let mut current = start_sample;
 
@@ -397,23 +351,22 @@ impl<T> AutomationEnvelope<T> {
             current += sample_step;
         }
 
-        if min <= max {
+        if min.is_finite() {
             Some((min, max))
         } else {
             None
         }
     }
 
-    /// Get the minimum and maximum values within a time range
+    #[must_use]
     pub fn get_range(&self, start_time: f64, end_time: f64) -> Option<(f32, f32)> {
         if self.points.is_empty() {
             return None;
         }
 
-        let mut min = f32::MAX;
-        let mut max = f32::MIN;
+        let mut min = f32::INFINITY;
+        let mut max = f32::NEG_INFINITY;
 
-        // Sample the envelope at regular intervals
         let sample_count = 100;
         let step = (end_time - start_time) / sample_count as f64;
 
@@ -425,7 +378,6 @@ impl<T> AutomationEnvelope<T> {
             }
         }
 
-        // Also check all points within the range
         for point in &self.points {
             if point.time >= start_time && point.time <= end_time {
                 min = min.min(point.value);
@@ -433,41 +385,38 @@ impl<T> AutomationEnvelope<T> {
             }
         }
 
-        if min == f32::MAX || max == f32::MIN {
-            None
-        } else {
+        if min.is_finite() {
             Some((min, max))
+        } else {
+            None
         }
     }
 
-    /// Shift all points by a time offset
-    pub fn shift_points(&mut self, offset: f64) {
+    pub fn shift_points(&mut self, offset: f64) -> &mut Self {
         for point in &mut self.points {
             point.time += offset;
         }
+        self
     }
 
-    /// Scale time by a factor (speed up/slow down)
-    pub fn scale_time(&mut self, factor: f64) {
+    pub fn scale_time(&mut self, factor: f64) -> &mut Self {
         if factor > 0.0 {
             for point in &mut self.points {
                 point.time *= factor;
             }
         }
+        self
     }
 
-    /// Remove points outside the given time range
-    pub fn trim(&mut self, start_time: f64, end_time: f64) {
+    pub fn trim(&mut self, start_time: f64, end_time: f64) -> &mut Self {
         self.points
             .retain(|p| p.time >= start_time && p.time <= end_time);
+        self
     }
 
-    // ==================== Envelope Manipulation ====================
-
-    /// Reverse the envelope in time
-    pub fn reverse(&mut self) {
+    pub fn reverse(&mut self) -> &mut Self {
         if self.points.is_empty() {
-            return;
+            return self;
         }
 
         let max_time = self.points.last().unwrap().time;
@@ -477,19 +426,19 @@ impl<T> AutomationEnvelope<T> {
         }
 
         self.points.reverse();
+        self
     }
 
-    /// Invert values vertically within a range
-    pub fn invert_values(&mut self, min: f32, max: f32) {
+    pub fn invert_values(&mut self, min: f32, max: f32) -> &mut Self {
         for point in &mut self.points {
             point.value = max - (point.value - min);
         }
+        self
     }
 
-    /// Quantize point times to a grid
-    pub fn quantize_time(&mut self, grid: f64) {
+    pub fn quantize_time(&mut self, grid: f64) -> &mut Self {
         if grid <= 0.0 {
-            return;
+            return self;
         }
 
         for point in &mut self.points {
@@ -497,19 +446,13 @@ impl<T> AutomationEnvelope<T> {
         }
 
         self.validate();
+        self
     }
 
-    /// Simplify envelope by removing redundant points.
-    ///
-    /// Points that don't significantly affect the curve shape are removed,
-    /// reducing the number of points while preserving the overall envelope shape.
-    ///
-    /// # Arguments
-    ///
-    /// * `tolerance` - Maximum allowed error when removing points.
-    pub fn simplify(&mut self, tolerance: f32) {
+    /// Removes points whose omission would produce error ≤ `tolerance`.
+    pub fn simplify(&mut self, tolerance: f32) -> &mut Self {
         if self.points.len() <= 2 {
-            return;
+            return self;
         }
 
         let mut simplified = Vec::new();
@@ -520,38 +463,29 @@ impl<T> AutomationEnvelope<T> {
             let curr = &self.points[i];
             let next = &self.points[i + 1];
 
-            // Calculate what the interpolated value would be without this point
             let time_span = next.time - prev.time;
             let t = ((curr.time - prev.time) / time_span) as f32;
             let interpolated = prev.curve.interpolate(prev.value, next.value, t);
 
-            // Keep point if error is too large
             if (curr.value - interpolated).abs() > tolerance {
                 simplified.push(curr.clone());
             }
         }
 
-        // Always keep last point
         simplified.push(self.points.last().unwrap().clone());
         self.points = simplified;
+        self
     }
 
-    // ==================== Iteration & Sampling ====================
-
-    /// Sample the envelope at regular intervals
+    #[must_use]
     pub fn to_buffer(&self, sample_rate: f64, duration: f64) -> Vec<f32> {
         let num_samples = (duration * sample_rate) as usize;
-        let mut buffer = Vec::with_capacity(num_samples);
-
-        for i in 0..num_samples {
-            let time = i as f64 / sample_rate;
-            buffer.push(self.get_value_at(time).unwrap_or(0.0));
-        }
-
-        buffer
+        (0..num_samples)
+            .map(|i| self.get_value_at(i as f64 / sample_rate).unwrap_or(0.0))
+            .collect()
     }
 
-    /// Get an iterator over sampled values
+    #[must_use]
     pub fn iter_samples(&self, sample_rate: f64, duration: f64) -> SampleIterator<'_, T> {
         SampleIterator {
             envelope: self,
@@ -561,9 +495,7 @@ impl<T> AutomationEnvelope<T> {
         }
     }
 
-    // ==================== Analysis ====================
-
-    /// Get the slope (rate of change) at a specific time
+    #[must_use]
     pub fn get_slope_at(&self, time: f64) -> Option<f32> {
         if self.points.len() < 2 {
             return Some(0.0);
@@ -573,48 +505,30 @@ impl<T> AutomationEnvelope<T> {
         let v1 = self.get_value_at(time - delta)?;
         let v2 = self.get_value_at(time + delta)?;
 
-        Some((v2 - v1) / (2.0 * delta as f32))
+        Some((v2 - v1) / (2.0 * delta) as f32)
     }
 
-    /// Find local maxima (peaks) in the envelope
+    #[must_use]
     pub fn find_peaks(&self) -> Vec<(f64, f32)> {
-        let mut peaks = Vec::new();
-
-        for i in 1..self.points.len() - 1 {
-            let prev = &self.points[i - 1];
-            let curr = &self.points[i];
-            let next = &self.points[i + 1];
-
-            if curr.value > prev.value && curr.value > next.value {
-                peaks.push((curr.time, curr.value));
-            }
-        }
-
-        peaks
+        self.points
+            .windows(3)
+            .filter(|w| w[1].value > w[0].value && w[1].value > w[2].value)
+            .map(|w| (w[1].time, w[1].value))
+            .collect()
     }
 
-    /// Find local minima (valleys) in the envelope
+    #[must_use]
     pub fn find_valleys(&self) -> Vec<(f64, f32)> {
-        let mut valleys = Vec::new();
-
-        for i in 1..self.points.len() - 1 {
-            let prev = &self.points[i - 1];
-            let curr = &self.points[i];
-            let next = &self.points[i + 1];
-
-            if curr.value < prev.value && curr.value < next.value {
-                valleys.push((curr.time, curr.value));
-            }
-        }
-
-        valleys
+        self.points
+            .windows(3)
+            .filter(|w| w[1].value < w[0].value && w[1].value < w[2].value)
+            .map(|w| (w[1].time, w[1].value))
+            .collect()
     }
 }
 
-// ==================== Preset Builders ====================
-
 impl<T: Clone> AutomationEnvelope<T> {
-    /// Create a fade-in envelope
+    /// 0.0 → 1.0 over `duration`.
     pub fn fade_in(target: T, duration: f64, curve: CurveType) -> Self {
         let mut env = Self::new(target);
         env.add_point(AutomationPoint::new(0.0, 0.0));
@@ -622,7 +536,7 @@ impl<T: Clone> AutomationEnvelope<T> {
         env
     }
 
-    /// Create a fade-out envelope
+    /// 1.0 → 0.0 over `duration`.
     pub fn fade_out(target: T, duration: f64, curve: CurveType) -> Self {
         let mut env = Self::new(target);
         env.add_point(AutomationPoint::new(0.0, 1.0));
@@ -630,7 +544,7 @@ impl<T: Clone> AutomationEnvelope<T> {
         env
     }
 
-    /// Create a pulse envelope (fade in, sustain, fade out)
+    /// Attack → sustain → release envelope.
     pub fn pulse(target: T, fade_in: f64, sustain: f64, fade_out: f64, curve: CurveType) -> Self {
         let mut env = Self::new(target);
         env.add_point(AutomationPoint::new(0.0, 0.0));
@@ -644,7 +558,6 @@ impl<T: Clone> AutomationEnvelope<T> {
         env
     }
 
-    /// Create a ramp from start to end value
     pub fn ramp(target: T, duration: f64, start: f32, end_value: f32, curve: CurveType) -> Self {
         let mut envelope = Self::new(target);
         envelope.add_point(AutomationPoint::new(0.0, start));
@@ -652,146 +565,103 @@ impl<T: Clone> AutomationEnvelope<T> {
         envelope
     }
 
-    /// Create an LFO (Low Frequency Oscillator) envelope
+    /// Sine-wave oscillation between `min` and `max` at `frequency` Hz.
     pub fn lfo(target: T, frequency: f64, duration: f64, min: f32, max: f32) -> Self {
-        let mut env = Self::new(target);
         let period = 1.0 / frequency;
         let num_cycles = (duration / period).ceil() as usize;
 
-        for i in 0..=num_cycles * 4 {
-            let t = i as f64 * period / 4.0;
-            if t > duration {
-                break;
-            }
-            let phase = (i % 4) as f32 / 4.0;
-            let value = min + (max - min) * (phase * std::f32::consts::PI * 2.0).sin() * 0.5 + 0.5;
-            env.add_point(AutomationPoint::new(t, value));
-        }
-
-        env
+        (0..=num_cycles * 4)
+            .map(|i| {
+                let t = i as f64 * period / 4.0;
+                let phase = (i % 4) as f32 / 4.0;
+                let value =
+                    min + (max - min) * ((phase * std::f32::consts::PI * 2.0).sin() * 0.5 + 0.5);
+                (t, value)
+            })
+            .take_while(|&(t, _)| t <= duration)
+            .fold(Self::new(target), |mut env, (t, value)| {
+                env.add_point(AutomationPoint::new(t, value));
+                env
+            })
     }
 }
 
-// ==================== Envelope Blending ====================
-
 impl<T: Clone> AutomationEnvelope<T> {
-    /// Blend this envelope with another at a given factor (0.0 = this, 1.0 = other)
+    /// Blend this envelope with another. `factor` 0.0 = this, 1.0 = other.
+    #[must_use]
     pub fn blend(&self, other: &Self, factor: f32) -> Self {
         let factor = factor.clamp(0.0, 1.0);
-        let mut result = Self::new(self.target.clone());
-
-        // Collect all unique time points from both envelopes
-        let mut times = std::collections::BTreeSet::new();
-        for point in &self.points {
-            times.insert(point.time.to_bits());
-        }
-        for point in &other.points {
-            times.insert(point.time.to_bits());
-        }
-
-        // Sample both envelopes at all time points
-        for time_bits in times {
-            let time = f64::from_bits(time_bits);
-            let v1 = self.get_value_at(time).unwrap_or(0.0);
-            let v2 = other.get_value_at(time).unwrap_or(0.0);
-            let blended = v1 * (1.0 - factor) + v2 * factor;
-            result.add_point(AutomationPoint::new(time, blended));
-        }
-
-        result
+        self.combine(other, |a, b| a * (1.0 - factor) + b * factor)
     }
 
-    /// Merge another envelope into this one (concatenate in time)
-    pub fn merge(&mut self, other: &Self, offset: f64) {
+    /// Concatenate `other` into this envelope, shifted by `offset`.
+    pub fn merge(&mut self, other: &Self, offset: f64) -> &mut Self {
         for point in &other.points {
-            let mut new_point = point.clone();
-            new_point.time += offset;
-            self.add_point(new_point);
+            self.add_point(AutomationPoint {
+                time: point.time + offset,
+                ..point.clone()
+            });
         }
+        self
     }
 
-    // ==================== Mathematical Operations ====================
-
-    /// Add another envelope's values to this one
-    ///
-    /// Samples both envelopes and adds their values at each time point.
-    /// Returns a new envelope with the combined result.
+    /// Samples both envelopes at all time points and adds their values.
+    #[must_use]
     pub fn add(&self, other: &Self) -> Self {
         self.combine(other, |a, b| a + b)
     }
 
-    /// Multiply this envelope's values by another
-    ///
     /// Useful for amplitude modulation or applying gain curves.
+    #[must_use]
     pub fn multiply(&self, other: &Self) -> Self {
         self.combine(other, |a, b| a * b)
     }
 
-    /// Take the minimum value between this and another envelope at each point
-    ///
     /// Useful for envelope followers or ducking effects.
+    #[must_use]
     pub fn min(&self, other: &Self) -> Self {
         self.combine(other, |a, b| a.min(b))
     }
 
-    /// Take the maximum value between this and another envelope at each point
-    ///
     /// Useful for gating or ensuring minimum levels.
+    #[must_use]
     pub fn max(&self, other: &Self) -> Self {
         self.combine(other, |a, b| a.max(b))
     }
 
-    /// Subtract another envelope's values from this one
+    #[must_use]
     pub fn subtract(&self, other: &Self) -> Self {
         self.combine(other, |a, b| a - b)
     }
 
-    /// Combine two envelopes using a custom function
     fn combine<F>(&self, other: &Self, op: F) -> Self
     where
         F: Fn(f32, f32) -> f32,
     {
+        let times: std::collections::BTreeSet<u64> = self
+            .points
+            .iter()
+            .chain(other.points.iter())
+            .map(|p| p.time.to_bits())
+            .collect();
+
         let mut result = Self::new(self.target.clone());
-
-        // Collect all unique time points from both envelopes
-        let mut times = std::collections::BTreeSet::new();
-        for point in &self.points {
-            times.insert(point.time.to_bits());
-        }
-        for point in &other.points {
-            times.insert(point.time.to_bits());
-        }
-
-        // Sample both envelopes at all time points
-        for time_bits in times {
-            let time = f64::from_bits(time_bits);
+        for time in times.into_iter().map(f64::from_bits) {
             let v1 = self.get_value_at(time).unwrap_or(0.0);
             let v2 = other.get_value_at(time).unwrap_or(0.0);
-            let combined = op(v1, v2);
-            result.add_point(AutomationPoint::new(time, combined));
+            result.add_point(AutomationPoint::new(time, op(v1, v2)));
         }
-
         result
     }
 
-    // ==================== Normalization & Scaling ====================
-
-    /// Normalize values to a specific range
-    ///
     /// Scales all values to fit between `new_min` and `new_max`.
     pub fn normalize(&mut self, new_min: f32, new_max: f32) -> &mut Self {
-        if self.points.is_empty() {
-            return self;
-        }
-
-        // Find current min/max
-        let mut current_min = f32::MAX;
-        let mut current_max = f32::MIN;
-
-        for point in &self.points {
-            current_min = current_min.min(point.value);
-            current_max = current_max.max(point.value);
-        }
+        let (current_min, current_max) = self
+            .points
+            .iter()
+            .fold((f32::INFINITY, f32::NEG_INFINITY), |(lo, hi), p| {
+                (lo.min(p.value), hi.max(p.value))
+            });
 
         let range = current_max - current_min;
         if range > 0.0 {
@@ -804,7 +674,6 @@ impl<T: Clone> AutomationEnvelope<T> {
         self
     }
 
-    /// Scale all values by a factor
     pub fn scale(&mut self, factor: f32) -> &mut Self {
         for point in &mut self.points {
             point.value *= factor;
@@ -812,7 +681,6 @@ impl<T: Clone> AutomationEnvelope<T> {
         self
     }
 
-    /// Add an offset to all values
     pub fn offset(&mut self, amount: f32) -> &mut Self {
         for point in &mut self.points {
             point.value += amount;
@@ -820,7 +688,6 @@ impl<T: Clone> AutomationEnvelope<T> {
         self
     }
 
-    /// Clamp all values to a range
     pub fn clamp_values(&mut self, min: f32, max: f32) -> &mut Self {
         for point in &mut self.points {
             point.value = point.value.clamp(min, max);
@@ -828,55 +695,38 @@ impl<T: Clone> AutomationEnvelope<T> {
         self
     }
 
-    // ==================== Fade Utilities ====================
-
-    /// Apply a fade-in at the start of the envelope
-    ///
-    /// Multiplies the envelope by a fade-in curve for the specified duration.
     pub fn apply_fade_in(&mut self, duration: f64, curve: CurveType) -> &mut Self {
-        if duration <= 0.0 || self.points.is_empty() {
+        if duration <= 0.0 {
             return self;
         }
-
-        let start_time = self.points.first().map(|p| p.time).unwrap_or(0.0);
-        let end_time = start_time + duration;
-
-        // Apply fade to all points in the fade range
-        for point in &mut self.points {
-            if point.time <= end_time {
-                let t = ((point.time - start_time) / duration).clamp(0.0, 1.0) as f32;
-                let fade_value = curve.interpolate(0.0, 1.0, t);
-                point.value *= fade_value;
+        if let Some(start_time) = self.points.first().map(|p| p.time) {
+            let end_time = start_time + duration;
+            for point in &mut self.points {
+                if point.time <= end_time {
+                    let t = ((point.time - start_time) / duration).clamp(0.0, 1.0) as f32;
+                    point.value *= curve.interpolate(0.0, 1.0, t);
+                }
             }
         }
-
         self
     }
 
-    /// Apply a fade-out at the end of the envelope
-    ///
-    /// Multiplies the envelope by a fade-out curve for the specified duration.
     pub fn apply_fade_out(&mut self, duration: f64, curve: CurveType) -> &mut Self {
-        if duration <= 0.0 || self.points.is_empty() {
+        if duration <= 0.0 {
             return self;
         }
-
-        let end_time = self.points.last().map(|p| p.time).unwrap_or(0.0);
-        let start_time = end_time - duration;
-
-        // Apply fade to all points in the fade range
-        for point in &mut self.points {
-            if point.time >= start_time {
-                let t = ((point.time - start_time) / duration).clamp(0.0, 1.0) as f32;
-                let fade_value = curve.interpolate(1.0, 0.0, t);
-                point.value *= fade_value;
+        if let Some(end_time) = self.points.last().map(|p| p.time) {
+            let start_time = end_time - duration;
+            for point in &mut self.points {
+                if point.time >= start_time {
+                    let t = ((point.time - start_time) / duration).clamp(0.0, 1.0) as f32;
+                    point.value *= curve.interpolate(1.0, 0.0, t);
+                }
             }
         }
-
         self
     }
 
-    /// Apply both fade-in and fade-out
     pub fn apply_fades(
         &mut self,
         fade_in_duration: f64,
@@ -887,19 +737,18 @@ impl<T: Clone> AutomationEnvelope<T> {
             .apply_fade_out(fade_out_duration, curve)
     }
 
-    /// Apply a gate - values below threshold become zero
     pub fn apply_gate(&mut self, threshold: f32) -> &mut Self {
         for point in &mut self.points {
-            if point.value < threshold {
-                point.value = 0.0;
-            }
+            point.value = if point.value < threshold {
+                0.0
+            } else {
+                point.value
+            };
         }
         self
     }
 
-    /// Apply simple compression
-    ///
-    /// Values above threshold are reduced by the given ratio.
+    /// Values above `threshold` are reduced by `ratio`.
     pub fn apply_compression(&mut self, threshold: f32, ratio: f32) -> &mut Self {
         for point in &mut self.points {
             if point.value > threshold {
@@ -910,8 +759,6 @@ impl<T: Clone> AutomationEnvelope<T> {
         self
     }
 }
-
-// ==================== Sample Iterator ====================
 
 /// Iterator over sampled envelope values
 pub struct SampleIterator<'a, T> {
@@ -939,6 +786,45 @@ impl<'a, T> Iterator for SampleIterator<'a, T> {
 impl<'a, T> ExactSizeIterator for SampleIterator<'a, T> {
     fn len(&self) -> usize {
         self.total_samples - self.current_sample
+    }
+}
+
+impl<T> std::ops::Index<usize> for AutomationEnvelope<T> {
+    type Output = AutomationPoint;
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.points[index]
+    }
+}
+
+impl<T> std::ops::IndexMut<usize> for AutomationEnvelope<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.points[index]
+    }
+}
+
+impl<'a, T> IntoIterator for &'a AutomationEnvelope<T> {
+    type Item = &'a AutomationPoint;
+    type IntoIter = std::slice::Iter<'a, AutomationPoint>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.points.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut AutomationEnvelope<T> {
+    type Item = &'a mut AutomationPoint;
+    type IntoIter = std::slice::IterMut<'a, AutomationPoint>;
+    fn into_iter(self) -> Self::IntoIter {
+        self.points.iter_mut()
+    }
+}
+
+impl<T: Default> FromIterator<AutomationPoint> for AutomationEnvelope<T> {
+    fn from_iter<I: IntoIterator<Item = AutomationPoint>>(iter: I) -> Self {
+        let mut env = Self::new(T::default());
+        for point in iter {
+            env.add_point(point);
+        }
+        env
     }
 }
 

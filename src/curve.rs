@@ -1,66 +1,39 @@
 //! Curve interpolation for automation
-//!
-//! Provides different interpolation curves for smooth automation
 
 use serde::{Deserialize, Serialize};
 
-/// Automation curve type
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
 pub enum CurveType {
-    /// Straight line interpolation
     #[default]
     Linear,
-    /// Exponential curve (accelerating)
     Exponential,
-    /// Logarithmic curve (decelerating)
     Logarithmic,
-    /// S-shaped curve (ease in-out)
     SCurve,
-    /// No interpolation (stepped/staircase)
     Stepped,
-    /// Cubic bezier with control points
     Bezier(f32, f32),
 
-    // Advanced easing functions
-    /// Elastic bounce at end (overshoot and settle)
     Elastic,
-    /// Bounce effect (like a ball bouncing)
     Bounce,
-    /// Back easing (pull back before going forward)
     Back,
-    /// Circular easing (quarter circle)
     Circular,
-    /// Quadratic ease in
     QuadIn,
-    /// Quadratic ease out
     QuadOut,
-    /// Quadratic ease in-out
     QuadInOut,
-    /// Cubic ease in
     CubicIn,
-    /// Cubic ease out
     CubicOut,
-    /// Cubic ease in-out
     CubicInOut,
-    /// Quartic ease in
     QuartIn,
-    /// Quartic ease out
     QuartOut,
-    /// Quartic ease in-out
     QuartInOut,
-    /// Quintic ease in
     QuintIn,
-    /// Quintic ease out
     QuintOut,
-    /// Quintic ease in-out
     QuintInOut,
 }
 
 impl CurveType {
-    /// Interpolate between two values at time t (0.0 to 1.0)
+    #[must_use]
     #[inline]
     pub fn interpolate(&self, start: f32, end: f32, t: f32) -> f32 {
-        // Clamp t to [0, 1]
         let t = t.clamp(0.0, 1.0);
 
         let t_eased = match self {
@@ -82,7 +55,6 @@ impl CurveType {
             }
             CurveType::Bezier(cp1, cp2) => cubic_bezier(t, *cp1, *cp2),
 
-            // Advanced easing functions
             CurveType::Elastic => {
                 if t == 0.0 {
                     0.0
@@ -117,7 +89,6 @@ impl CurveType {
             }
             CurveType::Circular => 1.0 - (1.0 - t * t).sqrt(),
 
-            // Quadratic
             CurveType::QuadIn => t * t,
             CurveType::QuadOut => 1.0 - (1.0 - t) * (1.0 - t),
             CurveType::QuadInOut => {
@@ -128,7 +99,6 @@ impl CurveType {
                 }
             }
 
-            // Cubic
             CurveType::CubicIn => t * t * t,
             CurveType::CubicOut => {
                 let t = 1.0 - t;
@@ -143,7 +113,6 @@ impl CurveType {
                 }
             }
 
-            // Quartic
             CurveType::QuartIn => t * t * t * t,
             CurveType::QuartOut => {
                 let t = 1.0 - t;
@@ -158,7 +127,6 @@ impl CurveType {
                 }
             }
 
-            // Quintic
             CurveType::QuintIn => t * t * t * t * t,
             CurveType::QuintOut => {
                 let t = 1.0 - t;
@@ -177,7 +145,7 @@ impl CurveType {
         start + (end - start) * t_eased
     }
 
-    /// Get a descriptive name for this curve type
+    #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
             CurveType::Linear => "Linear",
@@ -206,16 +174,13 @@ impl CurveType {
     }
 }
 
-/// Cubic bezier interpolation.
-///
-/// Evaluates the cubic Bezier formula `B(t) = (1-t)³ + 3(1-t)²t·cp1 + 3(1-t)t²·cp2 + t³`
-/// with fixed start (0,0) and end (1,1) control points.
-///
-/// # Arguments
-///
-/// * `t` - Interpolation parameter in `[0, 1]`.
-/// * `cp1` - First control point value.
-/// * `cp2` - Second control point value.
+impl std::fmt::Display for CurveType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+/// Cubic bezier with fixed (0,0)→(1,1) endpoints.
 #[inline]
 fn cubic_bezier(t: f32, cp1: f32, cp2: f32) -> f32 {
     let t2 = t * t;
