@@ -1,8 +1,11 @@
 //! Automation clip — container for multiple envelopes
 
+use alloc::string::String;
+use alloc::vec::Vec;
+
 use super::envelope::AutomationEnvelope;
+use hashbrown::HashMap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Groups multiple automation envelopes for unified time transformations and serialization.
 ///
@@ -33,7 +36,7 @@ pub struct AutomationClip<T> {
 
 impl<T> AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     pub fn new(name: impl Into<String>, duration: f64) -> Self {
         Self {
@@ -194,16 +197,16 @@ where
 
 impl<T> Default for AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     fn default() -> Self {
         Self::new("Untitled", 4.0)
     }
 }
 
-impl<T> std::ops::Index<&str> for AutomationClip<T>
+impl<T> core::ops::Index<&str> for AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     type Output = AutomationEnvelope<T>;
     fn index(&self, key: &str) -> &Self::Output {
@@ -211,9 +214,9 @@ where
     }
 }
 
-impl<T> std::ops::IndexMut<&str> for AutomationClip<T>
+impl<T> core::ops::IndexMut<&str> for AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     fn index_mut(&mut self, key: &str) -> &mut Self::Output {
         self.envelopes.get_mut(key).expect("key not found in clip")
@@ -222,10 +225,10 @@ where
 
 impl<'a, T> IntoIterator for &'a AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     type Item = (&'a String, &'a AutomationEnvelope<T>);
-    type IntoIter = std::collections::hash_map::Iter<'a, String, AutomationEnvelope<T>>;
+    type IntoIter = hashbrown::hash_map::Iter<'a, String, AutomationEnvelope<T>>;
     fn into_iter(self) -> Self::IntoIter {
         self.envelopes.iter()
     }
@@ -233,10 +236,10 @@ where
 
 impl<'a, T> IntoIterator for &'a mut AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     type Item = (&'a String, &'a mut AutomationEnvelope<T>);
-    type IntoIter = std::collections::hash_map::IterMut<'a, String, AutomationEnvelope<T>>;
+    type IntoIter = hashbrown::hash_map::IterMut<'a, String, AutomationEnvelope<T>>;
     fn into_iter(self) -> Self::IntoIter {
         self.envelopes.iter_mut()
     }
@@ -244,10 +247,10 @@ where
 
 impl<T> IntoIterator for AutomationClip<T>
 where
-    T: Clone + std::fmt::Debug,
+    T: Clone + core::fmt::Debug,
 {
     type Item = (String, AutomationEnvelope<T>);
-    type IntoIter = std::collections::hash_map::IntoIter<String, AutomationEnvelope<T>>;
+    type IntoIter = hashbrown::hash_map::IntoIter<String, AutomationEnvelope<T>>;
     fn into_iter(self) -> Self::IntoIter {
         self.envelopes.into_iter()
     }

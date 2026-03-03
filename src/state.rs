@@ -79,8 +79,8 @@ impl AutomationState {
     }
 }
 
-impl std::fmt::Display for AutomationState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for AutomationState {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.display_name())
     }
 }
@@ -88,6 +88,7 @@ impl std::fmt::Display for AutomationState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::format;
 
     #[test]
     fn test_automation_state_properties() {

@@ -7,6 +7,8 @@
 
 Time-based parameter automation with interpolation curves for audio applications.
 
+`#![no_std]` compatible (requires `alloc`). Works on embedded, WASM, and standard targets.
+
 ![Automation Curves](plots/complex.png)
 
 ## Usage

@@ -8,6 +8,7 @@
 //! - **Automation states** - DAW-style states (Off/Play/Write/Touch/Latch)
 //! - **Generic target system** - Works with any parameter type via generics
 //! - **Serialization support** - Save/load automation with serde
+//! - **`#![no_std]`** - Works on embedded and WASM targets (requires `alloc`)
 //!
 //! ## Quick Start
 //!
@@ -92,6 +93,13 @@
 //! // Index by key
 //! assert!(clip["volume"].get_value_at(2.0).unwrap() > 0.0);
 //! ```
+
+#![no_std]
+
+extern crate alloc;
+
+#[cfg(test)]
+extern crate std;
 
 pub mod clip;
 pub mod curve;

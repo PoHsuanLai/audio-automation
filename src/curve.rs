@@ -39,12 +39,12 @@ impl CurveType {
         let t_eased = match self {
             CurveType::Linear => t,
             CurveType::Exponential => t * t,
-            CurveType::Logarithmic => t.sqrt(),
+            CurveType::Logarithmic => libm::sqrtf(t),
             CurveType::SCurve => {
                 if t < 0.5 {
                     2.0 * t * t
                 } else {
-                    1.0 - (-2.0 * t + 2.0).powi(2) / 2.0
+                    1.0 - libm::powf(-2.0 * t + 2.0, 2.0 as f32) / 2.0
                 }
             }
             CurveType::Stepped => {
@@ -64,8 +64,8 @@ impl CurveType {
                 } else {
                     let p = 0.3;
                     let s = p / 4.0;
-                    -(2.0_f32.powf(10.0 * (t - 1.0)))
-                        * ((t - 1.0 - s) * (2.0 * std::f32::consts::PI) / p).sin()
+                    -(libm::powf(2.0_f32, 10.0 * (t - 1.0)))
+                        * libm::sinf((t - 1.0 - s) * (2.0 * core::f32::consts::PI) / p)
                 }
             }
             CurveType::Bounce => {
@@ -88,7 +88,7 @@ impl CurveType {
                 let s = 1.70158;
                 t * t * ((s + 1.0) * t - s)
             }
-            CurveType::Circular => 1.0 - (1.0 - t * t).sqrt(),
+            CurveType::Circular => 1.0 - libm::sqrtf(1.0 - t * t),
 
             CurveType::QuadIn => t * t,
             CurveType::QuadOut => 1.0 - (1.0 - t) * (1.0 - t),
@@ -96,7 +96,7 @@ impl CurveType {
                 if t < 0.5 {
                     2.0 * t * t
                 } else {
-                    1.0 - (-2.0 * t + 2.0).powi(2) / 2.0
+                    1.0 - libm::powf(-2.0 * t + 2.0, 2.0 as f32) / 2.0
                 }
             }
 
@@ -175,8 +175,8 @@ impl CurveType {
     }
 }
 
-impl std::fmt::Display for CurveType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for CurveType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(self.name())
     }
 }

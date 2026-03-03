@@ -1,5 +1,8 @@
 //! Automation envelope — time-indexed parameter automation with interpolation
 
+use alloc::collections::BTreeSet;
+use alloc::vec::Vec;
+
 use super::curve::CurveType;
 use serde::{Deserialize, Serialize};
 
@@ -274,7 +277,7 @@ impl<T> AutomationEnvelope<T> {
 
         if let Some(step) = self.step_size {
             if step > 0.0 {
-                value = (value / step).round() * step;
+                value = libm::roundf(value / step) * step;
             }
         }
 
@@ -327,7 +330,7 @@ impl<T> AutomationEnvelope<T> {
             }
         }
 
-        let mut seen_times = std::collections::HashSet::new();
+        let mut seen_times = BTreeSet::new();
         self.points.retain(|p| seen_times.insert(p.time.to_bits()));
     }
 
@@ -442,7 +445,7 @@ impl<T> AutomationEnvelope<T> {
         }
 
         for point in &mut self.points {
-            point.time = (point.time / grid).round() * grid;
+            point.time = libm::round(point.time / grid) * grid;
         }
 
         self.validate();
@@ -568,14 +571,14 @@ impl<T: Clone> AutomationEnvelope<T> {
     /// Sine-wave oscillation between `min` and `max` at `frequency` Hz.
     pub fn lfo(target: T, frequency: f64, duration: f64, min: f32, max: f32) -> Self {
         let period = 1.0 / frequency;
-        let num_cycles = (duration / period).ceil() as usize;
+        let num_cycles = libm::ceil(duration / period) as usize;
 
         (0..=num_cycles * 4)
             .map(|i| {
                 let t = i as f64 * period / 4.0;
                 let phase = (i % 4) as f32 / 4.0;
                 let value =
-                    min + (max - min) * ((phase * std::f32::consts::PI * 2.0).sin() * 0.5 + 0.5);
+                    min + (max - min) * (libm::sinf(phase * core::f32::consts::PI * 2.0) * 0.5 + 0.5);
                 (t, value)
             })
             .take_while(|&(t, _)| t <= duration)
@@ -638,7 +641,7 @@ impl<T: Clone> AutomationEnvelope<T> {
     where
         F: Fn(f32, f32) -> f32,
     {
-        let times: std::collections::BTreeSet<u64> = self
+        let times: BTreeSet<u64> = self
             .points
             .iter()
             .chain(other.points.iter())
@@ -789,14 +792,14 @@ impl<'a, T> ExactSizeIterator for SampleIterator<'a, T> {
     }
 }
 
-impl<T> std::ops::Index<usize> for AutomationEnvelope<T> {
+impl<T> core::ops::Index<usize> for AutomationEnvelope<T> {
     type Output = AutomationPoint;
     fn index(&self, index: usize) -> &Self::Output {
         &self.points[index]
     }
 }
 
-impl<T> std::ops::IndexMut<usize> for AutomationEnvelope<T> {
+impl<T> core::ops::IndexMut<usize> for AutomationEnvelope<T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.points[index]
     }
@@ -804,7 +807,7 @@ impl<T> std::ops::IndexMut<usize> for AutomationEnvelope<T> {
 
 impl<'a, T> IntoIterator for &'a AutomationEnvelope<T> {
     type Item = &'a AutomationPoint;
-    type IntoIter = std::slice::Iter<'a, AutomationPoint>;
+    type IntoIter = core::slice::Iter<'a, AutomationPoint>;
     fn into_iter(self) -> Self::IntoIter {
         self.points.iter()
     }
@@ -812,7 +815,7 @@ impl<'a, T> IntoIterator for &'a AutomationEnvelope<T> {
 
 impl<'a, T> IntoIterator for &'a mut AutomationEnvelope<T> {
     type Item = &'a mut AutomationPoint;
-    type IntoIter = std::slice::IterMut<'a, AutomationPoint>;
+    type IntoIter = core::slice::IterMut<'a, AutomationPoint>;
     fn into_iter(self) -> Self::IntoIter {
         self.points.iter_mut()
     }
