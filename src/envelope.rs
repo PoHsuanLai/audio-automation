@@ -577,8 +577,8 @@ impl<T: Clone> AutomationEnvelope<T> {
             .map(|i| {
                 let t = i as f64 * period / 4.0;
                 let phase = (i % 4) as f32 / 4.0;
-                let value =
-                    min + (max - min) * (libm::sinf(phase * core::f32::consts::PI * 2.0) * 0.5 + 0.5);
+                let value = min
+                    + (max - min) * (libm::sinf(phase * core::f32::consts::PI * 2.0) * 0.5 + 0.5);
                 (t, value)
             })
             .take_while(|&(t, _)| t <= duration)

@@ -44,7 +44,7 @@ impl CurveType {
                 if t < 0.5 {
                     2.0 * t * t
                 } else {
-                    1.0 - libm::powf(-2.0 * t + 2.0, 2.0 as f32) / 2.0
+                    1.0 - libm::powf(-2.0 * t + 2.0, 2.0_f32) / 2.0
                 }
             }
             CurveType::Stepped => {
@@ -96,7 +96,7 @@ impl CurveType {
                 if t < 0.5 {
                     2.0 * t * t
                 } else {
-                    1.0 - libm::powf(-2.0 * t + 2.0, 2.0 as f32) / 2.0
+                    1.0 - libm::powf(-2.0 * t + 2.0, 2.0_f32) / 2.0
                 }
             }
 
