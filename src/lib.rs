@@ -104,16 +104,19 @@ extern crate std;
 pub mod clip;
 pub mod curve;
 pub mod envelope;
+pub mod parameter;
 pub mod state;
 
 pub use clip::AutomationClip;
 pub use curve::CurveType;
 pub use envelope::{AutomationEnvelope, AutomationPoint, SampleIterator};
+pub use parameter::{ParameterRange, ParameterScale};
 pub use state::AutomationState;
 
 pub mod prelude {
     pub use crate::clip::AutomationClip;
     pub use crate::curve::CurveType;
     pub use crate::envelope::{AutomationEnvelope, AutomationPoint, SampleIterator};
+    pub use crate::parameter::{ParameterRange, ParameterScale};
     pub use crate::state::AutomationState;
 }

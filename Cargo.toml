@@ -1,6 +1,6 @@
 [package]
 name = "audio-automation"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["PoHsuan Lai <pohsuanlai0208@gmail.com>"]
 license = "MIT OR Apache-2.0"
