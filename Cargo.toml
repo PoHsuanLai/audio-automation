@@ -16,6 +16,14 @@ exclude = ["plots/", "automation_plots/"]
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 hashbrown = { version = "0.16", features = ["serde"] }
 libm = "0.2"
+bevy_reflect = { version = "0.17", default-features = false, optional = true }
+
+[features]
+default = []
+# Enable `Reflect` derives on the public types so they can participate
+# in Bevy's scene serialization. Requires the `bevy_reflect` crate
+# (no `bevy` runtime — just the reflection primitives).
+bevy_reflect = ["dep:bevy_reflect"]
 
 [dev-dependencies]
 serde_json = "1"

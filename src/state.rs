@@ -16,6 +16,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Automation state for a parameter lane (Ardour/Pro Tools style)
+#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum AutomationState {
     #[default]

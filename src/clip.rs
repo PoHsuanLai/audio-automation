@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 ///             .with_point(AutomationPoint::new(0.0, -1.0))
 ///             .with_point(AutomationPoint::new(8.0, 1.0)));
 /// ```
+#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationClip<T> {
     pub name: String,

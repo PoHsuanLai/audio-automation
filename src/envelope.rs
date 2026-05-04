@@ -7,6 +7,7 @@ use super::curve::CurveType;
 use serde::{Deserialize, Serialize};
 
 /// Single automation point
+#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationPoint {
     /// Time position in beats (or seconds, depending on context)
@@ -69,6 +70,7 @@ impl PartialEq for AutomationPoint {
 ///
 /// Generic over `T` (the automation target). Use `with_*` builder methods for construction,
 /// or mutating methods (returning `&mut Self`) for chaining on an existing envelope.
+#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationEnvelope<T> {
     pub target: T,

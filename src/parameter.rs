@@ -19,6 +19,7 @@
 //! ```
 
 /// How a parameter value is scaled between normalized (0-1) and real values.
+#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum ParameterScale {
     /// Linear mapping (default)
@@ -59,6 +60,7 @@ pub enum ParameterScale {
 ///
 /// Stores the valid range and default value, and provides conversion between
 /// normalized (0.0-1.0) and real parameter values.
+#[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
 #[derive(Debug, Clone)]
 pub struct ParameterRange {
     pub min: f32,
