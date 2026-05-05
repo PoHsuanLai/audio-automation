@@ -16,7 +16,7 @@ exclude = ["plots/", "automation_plots/"]
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 hashbrown = { version = "0.16", features = ["serde"] }
 libm = "0.2"
-bevy_reflect = { version = "0.17", default-features = false, optional = true }
+bevy_reflect = { version = "0.18", default-features = false, optional = true }
 
 [features]
 default = []
