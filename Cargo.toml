@@ -1,6 +1,6 @@
 [package]
 name = "audio-automation"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 authors = ["PoHsuan Lai <pohsuanlai0208@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,7 @@ exclude = ["plots/", "automation_plots/"]
 serde = { version = "1", default-features = false, features = ["derive", "alloc"] }
 hashbrown = { version = "0.16", features = ["serde"] }
 libm = "0.2"
-bevy_reflect = { version = "0.18", default-features = false, optional = true }
+bevy_reflect = { version = "0.19", default-features = false, optional = true }
 
 [features]
 default = []
