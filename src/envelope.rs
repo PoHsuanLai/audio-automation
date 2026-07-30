@@ -59,6 +59,16 @@ impl AutomationPoint {
 
 /// Compares two [`AutomationPoint`]s using epsilon-based floating-point comparison
 /// on `time` and `value` fields. The `curve` type is not considered.
+///
+/// This is a **breakpoint-identity** test — "is this the same point on the curve?"
+/// — not a whole-value one. Two points at the same time and value are equal here
+/// even if they interpolate differently toward the next point.
+///
+/// That makes it the wrong predicate for change detection: a host that guards a
+/// redraw or an engine push on `old == new` will silently drop a
+/// linear-to-exponential edit, because the only field that changed is the one this
+/// ignores. Use [`AutomationPoint::eq_exact`] for that, and see
+/// [`AutomationEnvelope::eq_exact`] for the envelope-level equivalent.
 impl PartialEq for AutomationPoint {
     fn eq(&self, other: &Self) -> bool {
         (self.time - other.time).abs() < f64::EPSILON
@@ -66,12 +76,35 @@ impl PartialEq for AutomationPoint {
     }
 }
 
+impl AutomationPoint {
+    /// Compare **every** field, including `curve`.
+    ///
+    /// The counterpart to this type's [`PartialEq`], which deliberately compares
+    /// only `time` and `value`. Reach for this when the question is "did this point
+    /// change at all?" rather than "is this the same breakpoint?" — change
+    /// detection, dirty flags, undo coalescing.
+    ///
+    /// `time` and `value` keep the same epsilon tolerance `PartialEq` uses, so this
+    /// is strictly *stronger*: `a.eq_exact(b)` implies `a == b`. `curve` is compared
+    /// exactly (it is an enum). `sample_position` is **excluded** — it is a
+    /// derived cache of `time` against a tempo map (see the field docs), so two
+    /// points differing only there carry identical authored data, one merely having
+    /// been resolved already.
+    pub fn eq_exact(&self, other: &Self) -> bool {
+        self == other && self.curve == other.curve
+    }
+}
+
 /// Automation envelope for a single parameter.
 ///
 /// Generic over `T` (the automation target). Use `with_*` builder methods for construction,
 /// or mutating methods (returning `&mut Self`) for chaining on an existing envelope.
+/// Note the derived [`PartialEq`] inherits [`AutomationPoint`]'s, which compares
+/// breakpoints by `time` and `value` only. Two envelopes differing solely in a
+/// point's `curve` therefore compare **equal**. Use [`eq_exact`](Self::eq_exact)
+/// when that distinction matters.
 #[cfg_attr(feature = "bevy_reflect", derive(bevy_reflect::Reflect))]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AutomationEnvelope<T> {
     pub target: T,
     /// Sorted by time
@@ -80,6 +113,30 @@ pub struct AutomationEnvelope<T> {
     pub min_value: Option<f32>,
     pub max_value: Option<f32>,
     pub step_size: Option<f32>,
+}
+
+impl<T: PartialEq> AutomationEnvelope<T> {
+    /// Compare two envelopes field by field, comparing points with
+    /// [`AutomationPoint::eq_exact`] so a `curve` change is visible.
+    ///
+    /// This is the predicate change detection wants. The derived [`PartialEq`]
+    /// inherits `AutomationPoint`'s breakpoint-identity semantics, so it reports
+    /// "unchanged" when the only edit was a point's interpolation — which, for a
+    /// host that pushes to an audio engine on inequality, means the engine keeps
+    /// playing the old curve.
+    pub fn eq_exact(&self, other: &Self) -> bool {
+        self.target == other.target
+            && self.enabled == other.enabled
+            && self.min_value == other.min_value
+            && self.max_value == other.max_value
+            && self.step_size == other.step_size
+            && self.points.len() == other.points.len()
+            && self
+                .points
+                .iter()
+                .zip(&other.points)
+                .all(|(a, b)| a.eq_exact(b))
+    }
 }
 
 impl<T> AutomationEnvelope<T> {
@@ -1186,5 +1243,120 @@ mod tests {
         assert_eq!(env.points[0].value, 0.5);
         // Second point: 0.7 + (1.0 - 0.7) / 2.0 = 0.85
         assert!((env.points[1].value - 0.85).abs() < 0.01);
+    }
+
+    /// The documented `PartialEq` semantics: same time + value is the same
+    /// breakpoint, whatever it does on the way to the next one.
+    #[test]
+    fn partial_eq_ignores_the_curve_by_design() {
+        let linear = AutomationPoint::with_curve(1.0, 0.5, CurveType::Linear);
+        let expo = AutomationPoint::with_curve(1.0, 0.5, CurveType::Exponential);
+
+        assert_eq!(linear, expo, "breakpoint identity is time + value only");
+        assert!(
+            !linear.eq_exact(&expo),
+            "eq_exact must see the field PartialEq elides"
+        );
+    }
+
+    /// `eq_exact` is strictly stronger than `PartialEq`: it never reports equal
+    /// where `PartialEq` reports unequal.
+    #[test]
+    fn eq_exact_implies_partial_eq() {
+        let cases = [
+            (
+                AutomationPoint::new(1.0, 0.5),
+                AutomationPoint::new(1.0, 0.5),
+            ),
+            (
+                AutomationPoint::new(1.0, 0.5),
+                AutomationPoint::new(2.0, 0.5),
+            ),
+            (
+                AutomationPoint::new(1.0, 0.5),
+                AutomationPoint::new(1.0, 0.9),
+            ),
+            (
+                AutomationPoint::with_curve(1.0, 0.5, CurveType::Linear),
+                AutomationPoint::with_curve(1.0, 0.5, CurveType::Exponential),
+            ),
+        ];
+        for (a, b) in cases {
+            if a.eq_exact(&b) {
+                assert_eq!(a, b, "eq_exact must imply PartialEq");
+            }
+        }
+    }
+
+    /// `sample_position` is a derived cache of `time`, so resolving it does not
+    /// make a point a different point.
+    #[test]
+    fn eq_exact_ignores_the_derived_sample_position() {
+        let unresolved = AutomationPoint::new(1.0, 0.5);
+        let mut resolved = unresolved.clone();
+        resolved.set_sample_position(48_000);
+
+        assert!(
+            unresolved.eq_exact(&resolved),
+            "a resolved cache carries the same authored data"
+        );
+    }
+
+    /// The bug this pair exists to prevent: a host guarding an engine push on
+    /// envelope equality drops a linear-to-exponential edit, because the derived
+    /// `PartialEq` inherits `AutomationPoint`'s curve-blindness.
+    #[test]
+    fn envelope_eq_exact_catches_a_curve_only_edit() {
+        let mut before = AutomationEnvelope::new(TestTarget::Volume);
+        before.add_point(AutomationPoint::new(0.0, 0.0));
+        before.add_point(AutomationPoint::with_curve(1.0, 1.0, CurveType::Linear));
+
+        let mut after = AutomationEnvelope::new(TestTarget::Volume);
+        after.add_point(AutomationPoint::new(0.0, 0.0));
+        after.add_point(AutomationPoint::with_curve(
+            1.0,
+            1.0,
+            CurveType::Exponential,
+        ));
+
+        assert_eq!(
+            before, after,
+            "derived PartialEq inherits the curve-blindness"
+        );
+        assert!(
+            !before.eq_exact(&after),
+            "eq_exact is what change detection must use"
+        );
+    }
+
+    #[test]
+    fn envelope_eq_exact_compares_every_other_field() {
+        let base = AutomationEnvelope::new(TestTarget::Volume);
+
+        let mut target = AutomationEnvelope::new(TestTarget::Pan);
+        target.enabled = base.enabled;
+        assert!(!base.eq_exact(&target), "target must be compared");
+
+        let mut disabled = base.clone();
+        disabled.enabled = !base.enabled;
+        assert!(!base.eq_exact(&disabled), "enabled must be compared");
+
+        let mut ranged = base.clone();
+        ranged.min_value = Some(-1.0);
+        assert!(!base.eq_exact(&ranged), "min_value must be compared");
+
+        let mut maxed = base.clone();
+        maxed.max_value = Some(2.0);
+        assert!(!base.eq_exact(&maxed), "max_value must be compared");
+
+        let mut stepped = base.clone();
+        stepped.step_size = Some(0.25);
+        assert!(!base.eq_exact(&stepped), "step_size must be compared");
+
+        let mut extra = base.clone();
+        extra.add_point(AutomationPoint::new(0.0, 0.0));
+        assert!(!base.eq_exact(&extra), "point count must be compared");
+
+        assert!(base.eq_exact(&base.clone()), "an unchanged clone is equal");
     }
 }
