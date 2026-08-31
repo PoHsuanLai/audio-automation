@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.4.1] - 2026-06-22
+
+### Added
+
+- Optional `bevy_reflect` feature — `Reflect` derives on public types for Bevy scene serialization (no Bevy runtime required)
+
+### Changed
+
+- Target `bevy_reflect` 0.19 so downstream `#[derive(Reflect)]` types holding `AutomationEnvelope<T>` resolve against the 0.19 reflection traits
+
+## [0.4.0] - 2026-04-16
+
+### Added
+
+- `ParameterRange` and `ParameterScale` for converting between normalized (0.0–1.0) values and real parameter values
+- Scale modes: linear, logarithmic, exponential, toggle, and integer
+- dB/linear conversion utilities (`db_to_linear`, `linear_to_db`)
+
 ## [0.3.0] - 2026-03-04
 
 ### Changed
