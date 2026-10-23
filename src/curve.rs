@@ -189,14 +189,37 @@ fn cubic_bezier(t: f32, cp1: f32, cp2: f32) -> f32 {
     let t3 = t2 * t;
     let mt = 1.0 - t;
     let mt2 = mt * mt;
-    let mt3 = mt2 * mt;
 
-    // Cubic bezier formula: B(t) = (1-t)³ + 3(1-t)²t·cp1 + 3(1-t)t²·cp2 + t³
-    mt3 + 3.0 * mt2 * t * cp1 + 3.0 * mt * t2 * cp2 + t3
+    // B(t) = (1-t)³·0 + 3(1-t)²t·cp1 + 3(1-t)t²·cp2 + t³·1
+    3.0 * mt2 * t * cp1 + 3.0 * mt * t2 * cp2 + t3
 }
 
 #[cfg(test)]
 mod tests {
+    /// A Bezier runs from its start to its end value, and its midpoint is
+    /// the closed form (3·cp1 + 3·cp2 + 1) / 8.
+    ///
+    /// Mutation (run): keeping the `(1-t)³` term, which takes the start
+    /// point as 1, makes `t = 0` return 1 and the midpoint
+    /// `(3·cp1 + 3·cp2 + 2) / 8`; fails.
+    #[test]
+    fn bezier_runs_from_start_to_end() {
+        for (cp1, cp2) in [(0.0, 1.0), (0.2, 0.8), (0.9, 0.1), (0.5, 0.5)] {
+            let curve = CurveType::Bezier(cp1, cp2);
+            assert_eq!(curve.interpolate(0.0, 1.0, 0.0), 0.0, "{curve:?} at 0");
+            assert_eq!(curve.interpolate(0.0, 1.0, 1.0), 1.0, "{curve:?} at 1");
+            let mid = (3.0 * cp1 + 3.0 * cp2 + 1.0) / 8.0;
+            assert!(
+                (curve.interpolate(0.0, 1.0, 0.5) - mid).abs() < 1e-6,
+                "{curve:?} at 0.5"
+            );
+            assert!(
+                (curve.interpolate(2.0, 6.0, 0.5) - (2.0 + 4.0 * mid)).abs() < 1e-5,
+                "{curve:?} scaled"
+            );
+        }
+    }
+
     use super::*;
 
     #[test]

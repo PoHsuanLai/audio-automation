@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- `CurveType::Bezier` starts at its start value. `cubic_bezier` took the curve's first point as 1, so a Bezier began at the end value and jumped at `t = 0`
+
 ## [0.4.1] - 2026-06-22
 
 ### Added
